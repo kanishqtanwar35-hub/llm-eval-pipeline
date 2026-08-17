@@ -1,0 +1,68 @@
+name: Evals
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Nightly: catches provider-side model changes you did not make.
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Unit-test the eval harness itself
+        run: pytest -q
+
+      - name: Run evals against the stub (no key needed)
+        run: python run_evals.py --target stub --threshold 0.70
+
+      - name: Run evals against the real model
+        # Only on pushes to main, and only when the secret exists — forks and
+        # PRs would otherwise fail on a missing key.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "no GEMINI_API_KEY set — skipping live eval"; exit 0
+          fi
+          python run_evals.py --target gemini --threshold 0.80
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report
+          path: reports/
+
+      - name: Publish the report to Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+  deploy-report:
+    needs: evals
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
