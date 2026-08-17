@@ -98,8 +98,12 @@ class GeminiTarget:
             "generationConfig": {"temperature": 0.0, "maxOutputTokens": 500},
         }
 
+        # Key in a header, not the query string — a `?key=...` URL leaks into
+        # exception messages and from there into CI logs.
+        headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
+
         for attempt in range(3):
-            r = requests.post(url, params={"key": api_key}, json=payload, timeout=45)
+            r = requests.post(url, headers=headers, json=payload, timeout=45)
             if r.status_code == 429:
                 time.sleep(2 ** (attempt + 2))
                 continue
