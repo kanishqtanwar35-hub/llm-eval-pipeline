@@ -1,4 +1,4 @@
-"""The thing being evaluated.
+﻿"""The thing being evaluated.
 
 A "target" is any callable str -> str. Swapping targets is how you compare a
 prompt change, a model change, or your own RAG app against the same golden set.
@@ -10,7 +10,6 @@ own unit tests.
 
 import json
 import os
-import re
 import time
 from typing import Protocol
 
@@ -76,15 +75,26 @@ class GeminiTarget:
 
     name = "gemini"
 
+    # Pinned deliberately, not a `-latest` alias. An eval suite exists to
+    # detect change; if the model underneath can shift without a commit, a red
+    # run tells you nothing about whether *you* broke something. Bump this
+    # version explicitly and let the suite show you the delta â€” that diff is
+    # the most useful output this project produces.
+    DEFAULT_MODEL = "gemini-2.5-flash"
+
     def __init__(self, model: str = None, system: str = ""):
-        self.model = model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.model = model or os.getenv("GEMINI_MODEL", self.DEFAULT_MODEL)
         self.system = system or (
             "You are a concise assistant. Answer directly. "
             "When asked for JSON, return only JSON."
         )
 
     def __call__(self, prompt: str) -> str:
-        api_key = os.environ.get("GEMINI_API_KEY")
+        # Strip whitespace and a possible UTF-8 BOM. Secrets pasted into a web
+        # form or piped from a file routinely carry both, and either one fails
+        # deep in http.client with a latin-1 codec error once the value is used
+        # as a header — an error that looks like a library bug.
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip().lstrip("﻿").strip()
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY is not set")
 
@@ -98,7 +108,7 @@ class GeminiTarget:
             "generationConfig": {"temperature": 0.0, "maxOutputTokens": 500},
         }
 
-        # Key in a header, not the query string — a `?key=...` URL leaks into
+        # Key in a header, not the query string â€” a `?key=...` URL leaks into
         # exception messages and from there into CI logs.
         headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
 
