@@ -1,4 +1,4 @@
-﻿"""The thing being evaluated.
+"""The thing being evaluated.
 
 A "target" is any callable str -> str. Swapping targets is how you compare a
 prompt change, a model change, or your own RAG app against the same golden set.
@@ -94,7 +94,7 @@ class GeminiTarget:
         # form or piped from a file routinely carry both, and either one fails
         # deep in http.client with a latin-1 codec error once the value is used
         # as a header — an error that looks like a library bug.
-        api_key = os.environ.get("GEMINI_API_KEY", "").strip().lstrip("﻿").strip()
+        api_key = os.environ.get("GEMINI_API_KEY", "").strip().lstrip("\ufeff").strip()
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY is not set")
 
