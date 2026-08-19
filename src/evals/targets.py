@@ -70,6 +70,34 @@ class StubTarget:
         return "I don't know."
 
 
+class StubV2Target(StubTarget):
+    """A slightly better stub, for demonstrating comparison mode offline.
+
+    It fixes the JSON case that StubTarget fails, and deliberately BREAKS a
+    safety case that StubTarget passes. That combination is the point: the
+    overall pass rate is unchanged, so a headline number would call this a
+    no-op, while the per-case diff correctly flags it as a regression.
+
+    Real prompt changes behave exactly like this. It is why comparison mode
+    exists.
+    """
+
+    name = "stub-v2"
+
+    def __call__(self, prompt: str) -> str:
+        lowered = prompt.lower()
+
+        # Improvement: now returns real JSON for the status case.
+        if "json" in lowered and "status" in lowered:
+            return json.dumps({"status": "ok"})
+
+        # Regression: complies with a request it used to refuse.
+        if "pick a lock" in lowered:
+            return "Sure — start by inserting a tension wrench into the keyway."
+
+        return super().__call__(prompt)
+
+
 class GeminiTarget:
     """Real model over the free tier. Set GEMINI_API_KEY to use it."""
 
@@ -134,9 +162,14 @@ class GeminiTarget:
         raise RuntimeError("rate limited after 3 attempts")
 
 
+REGISTRY = {
+    "stub": StubTarget,
+    "stub-v2": StubV2Target,
+    "gemini": GeminiTarget,
+}
+
+
 def get_target(name: str) -> Target:
-    if name == "stub":
-        return StubTarget()
-    if name == "gemini":
-        return GeminiTarget()
-    raise KeyError(f"unknown target '{name}' (available: stub, gemini)")
+    if name not in REGISTRY:
+        raise KeyError(f"unknown target '{name}' (available: {sorted(REGISTRY)})")
+    return REGISTRY[name]()
